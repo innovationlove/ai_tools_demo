@@ -10,6 +10,26 @@ const app = express();
 const PORT = 8082;
 
 const upload = multer({ dest: 'uploads/' });
+const auth = require('basic-auth');
+
+const requireAuth = (req, res, next) => {
+
+  if (process.env.PROD !== 'true') {
+    return next(); // skip auth in non-prod
+  }
+
+  const user = auth(req);
+  const validUser = 'ilove-ai-tools';
+  const validPass = 'ilove-ai-tools-091106';
+
+  if (!user || user.name !== validUser || user.pass !== validPass) {
+    res.set('WWW-Authenticate', 'Basic realm="Restricted Area"');
+    return res.status(401).send('Authentication required.');
+  }
+
+  next();
+};
+app.use(requireAuth);
 
 app.use(express.static('public'));
 app.use(express.json());
