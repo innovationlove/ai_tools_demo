@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ilove ai tools demo</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, sans-serif;
+      background-color: #121212;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    h1 {
+      color: #00bfa6;
+    }
+
+    details {
+      width: 100%;
+      max-width: 800px;
+      margin-bottom: 2rem;
+      background: #1e1e1e;
+      border-radius: 8px;
+      padding: 1rem;
+      box-shadow: 0 0 10px rgba(0, 255, 255, 0.1);
+    }
+
+    summary {
+      font-size: 1.25rem;
+      font-weight: bold;
+      cursor: pointer;
+      color: #00bfa6;
+    }
+
+    form {
+      margin-top: 1rem;
+    }
+
+    input[type="file"] {
+      background-color: #2e2e2e;
+      color: #ccc;
+      border: none;
+      padding: 1rem;
+      width: 100%;
+      border-radius: 4px;
+    }
+
+    button {
+      margin-top: 1rem;
+      padding: 1rem 2rem;
+      background-color: #00bfa6;
+      border: none;
+      color: white;
+      font-weight: bold;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    pre {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      background: #1e1e1e;
+      padding: 1rem;
+      margin-top: 1rem;
+      border-radius: 8px;
+      overflow-x: auto;
+    }
+
+    .file-block {
+      margin-top: 1rem;
+    }
+
+    label {
+      display: flex;
+      align-items: start;
+      gap: 0.5rem;
+    }
+
+    .collapsible-text {
+      max-height: 10em;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .collapsible-text.expanded {
+      max-height: none;
+    }
+
+    .expand-toggle {
+      cursor: pointer;
+      color: #00bfa6;
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>ilove ai tools demo</h1>
+
+  <details>
+    <summary>paraphraseListingDetails</summary>
+    <form id="paraphraseForm" style="display: grid; gap: 1rem; max-width: 600px;">
+  <label style="display: flex; flex-direction: column;">
+    Title:
+    <input type="text" name="title" required value="1-bedroom Condo For Sale in Paranaque Metro Manila" />
+  </label>
+  <label style="display: flex; flex-direction: column;">
+    Description:
+    <textarea name="description" rows="3" required>Gold City</textarea>
+  </label>
+  <label style="display: flex; flex-direction: column;">
+    Location:
+    <input type="text" name="location" required value="Parañaque, Metro Manila" />
+  </label>
+  <label style="display: flex; flex-direction: column;">
+    Price:
+    <input type="number" name="price" required value="8000000" />
+  </label>
+  <label style="display: flex; flex-direction: column;">
+    Bedrooms:
+    <input type="number" name="bedrooms" required value="1" />
+  </label>
+  <label style="display: flex; flex-direction: column;">
+    Bathrooms:
+    <input type="number" name="bathrooms" required value="1" />
+  </label>
+  <label style="display: flex; flex-direction: column;">
+    Property Condition:
+    <input type="text" name="propertyCondition" required value="New" />
+  </label>
+  <label style="display: flex; flex-direction: column;">
+    Province:
+    <input type="text" name="locationProvince" required value="Metro Manila" />
+  </label>
+  <label style="display: flex; flex-direction: column;">
+    City:
+    <input type="text" name="locationCity" required value="Parañaque" />
+  </label>
+  <button type="submit" id="paraphraseSubmit">Paraphrase</button>
+  <div id="paraphraseResult" style="margin-top: 1rem; background: #1e1e1e; padding: 1rem; border-radius: 8px; white-space: pre-wrap; word-wrap: break-word;"></div>
+</form>
+  </details>
+
+  <details open>
+    <summary>extractListingDetails</summary>
+    <form id="uploadForm" enctype="multipart/form-data">
+      <input type="file" name="files" multiple required />
+      <button type="submit" id="uploadButton">Upload</button>
+    </form>
+    <div id="uploadStatus" style="margin-top:1rem;color:#00bfa6;"></div>
+    <div id="results"></div>
+    <form id="submitSelectedForm">
+      <button type="submit" id="submitButton">Send Selected to extractListingDetails API</button>
+    </form>
+  </details>
+
+  <script>
+    const uploadForm = document.getElementById('uploadForm');
+    const results = document.getElementById('results');
+    const submitSelectedForm = document.getElementById('submitSelectedForm');
+    const submitButton = document.getElementById('submitButton');
+
+    let uploadedTexts = [];
+
+    uploadForm.addEventListener('submit', async (e) => {
+      const uploadButton = document.getElementById('uploadButton');
+      uploadButton.disabled = true;
+      const uploadStatus = document.getElementById('uploadStatus');
+      let dots = ['.', '..', '...'];
+      let j = 0;
+      uploadStatus.textContent = 'Uploading';
+      const uploadInterval = setInterval(() => {
+        uploadStatus.textContent = `Uploading${dots[j % dots.length]}`;
+        j++;
+      }, 400);
+      e.preventDefault();
+      results.innerHTML = '';
+            uploadedTexts = [];
+
+      const formData = new FormData(uploadForm);
+
+      const res = await fetch('/upload-multi', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+      clearInterval(uploadInterval);
+      uploadStatus.textContent = '';
+      uploadButton.disabled = false;
+
+      data.forEach((fileResult, idx) => {
+        const filename = fileResult.filename || `File ${idx + 1}`;
+        const container = document.createElement('div');
+        container.className = 'file-block';
+
+        const label = document.createElement('label');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.dataset.index = idx;
+        checkbox.checked = true;
+
+        const textBlock = document.createElement('div');
+        textBlock.className = 'collapsible-text';
+        textBlock.textContent = `${fileResult.text || fileResult.error}`;
+
+        const toggle = document.createElement('div');
+        toggle.className = 'expand-toggle';
+        toggle.textContent = 'Show More';
+        toggle.addEventListener('click', () => {
+          textBlock.classList.toggle('expanded');
+          toggle.textContent = textBlock.classList.contains('expanded') ? 'Show Less' : 'Show More';
+        });
+
+        uploadedTexts.push(fileResult.text || '');
+
+        label.appendChild(checkbox);
+        const fileNameLabel = document.createElement('span');
+        fileNameLabel.textContent = filename;
+        label.appendChild(fileNameLabel);
+        label.appendChild(textBlock);
+        container.appendChild(label);
+        container.appendChild(toggle);
+        results.appendChild(container);
+      });
+    });
+
+    submitSelectedForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      submitButton.disabled = true;
+      let dots = ['.', '..', '...'];
+      let i = 0;
+      const loadingInterval = setInterval(() => {
+        submitButton.textContent = `Processing${dots[i % dots.length]}`;
+        i++;
+      }, 400);
+
+      const checkboxes = results.querySelectorAll('input[type="checkbox"]');
+      const selectedTexts = [];
+
+      checkboxes.forEach(cb => {
+        const idx = parseInt(cb.dataset.index);
+        if (cb.checked) {
+          selectedTexts.push(uploadedTexts[idx]);
+        }
+      });
+
+      const combinedText = selectedTexts.join('\n\n');
+
+      const response = await fetch('/process-listing-details', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ text: combinedText })
+      });
+
+      const result = await response.json();
+      const output = document.createElement('pre');
+      const parsed = result.body ? JSON.parse(result.body) : result;
+      output.innerHTML = `<h3 style='color:#00bfa6;'>Parsed Listing Details:</h3><pre>${JSON.stringify(parsed, null, 2)}</pre>`;
+      results.appendChild(output);
+
+      submitButton.disabled = false;
+      clearInterval(loadingInterval);
+      submitButton.textContent = 'Send Selected to extractListingDetails API';
+
+      output.scrollIntoView({ behavior: 'smooth' });
+    });
+  const paraphraseForm = document.getElementById('paraphraseForm');
+const paraphraseResult = document.getElementById('paraphraseResult');
+const paraphraseButton = document.getElementById('paraphraseSubmit');
+
+paraphraseForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  paraphraseButton.disabled = true;
+  paraphraseButton.textContent = 'Processing...';
+
+  const formData = new FormData(paraphraseForm);
+  const payload = Object.fromEntries(formData.entries());
+
+  const response = await fetch('/process-paraphrase', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const result = await response.json();
+  const parsed = result.body ? JSON.parse(result.body) : result;
+  paraphraseResult.innerHTML = `
+    <h3 style='color:#00bfa6;'>Paraphrased Listing:</h3>
+    <pre>{
+  "title": "${parsed.title || 'N/A'}",
+  "description": "${(parsed.description || '').replace(/"/g, '\"')}"
+}</pre>
+  `;
+  paraphraseButton.disabled = false;
+  paraphraseButton.textContent = 'Paraphrase';
+});
+</script>
+</body>
+</html>
