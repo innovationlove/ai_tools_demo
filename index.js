@@ -19,8 +19,8 @@ const requireAuth = (req, res, next) => {
   }
 
   const user = auth(req);
-  const validUser = 'ilove-ai-tools';
-  const validPass = 'ilove-ai-tools-091106';
+  const validUser = process.env.BASIC_AUTH_USER;
+  const validPass = process.env.BASIC_AUTH_PASS;
 
   if (!user || user.name !== validUser || user.pass !== validPass) {
     res.set('WWW-Authenticate', 'Basic realm="Restricted Area"');
