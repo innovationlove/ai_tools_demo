@@ -102,7 +102,16 @@ app.post('/process-paraphrase', async (req, res) => {
 // Proxy to Bedrock API (parsing listing details)
 app.post('/process-listing-details', async (req, res) => {
   try {
-    const { text } = req.body;
+    const { text, model } = req.body;
+
+    // Remove all double quotes from the text
+    const cleanedText = typeof text === 'string' ? text.replace(/"/g, '') : '';
+
+    const payload = { text: cleanedText };
+
+    if (model === 'arn:aws:bedrock:ap-southeast-1:716337465006:inference-profile/apac.anthropic.claude-3-5-sonnet-20240620-v1:0') {
+      payload.model = model;
+    }
 
     const response = await fetch(`${process.env.API_ENDPOINT}/extract_listing_details`, {
       method: 'POST',
@@ -110,22 +119,35 @@ app.post('/process-listing-details', async (req, res) => {
         'Content-Type': 'application/json',
         'x-api-key': process.env.API_KEY
       },
-      body: JSON.stringify({ text })
+      body: JSON.stringify(payload)
     });
 
+    const raw = await response.text();
+
     if (!response.ok) {
-      const errorBody = await response.text();
-      console.error('Upstream error:', response.status, errorBody);
-      return res.status(502).json({ error: 'Upstream API error', details: errorBody });
+      console.error('Upstream error:', response.status, raw);
+      return res.status(502).json({ error: 'Upstream API error', details: raw });
     }
 
-    const data = await response.json();
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (parseErr) {
+      console.error('JSON parse error:', parseErr.message);
+      console.error('Raw response body:', raw);
+      return res.status(500).json({
+        error: 'Malformed JSON response from Claude',
+        raw
+      });
+    }
+
     res.json(data);
   } catch (err) {
     console.error('Handler error:', err);
     res.status(500).json({ error: 'Failed to process listing details.' });
   }
 });
+
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);

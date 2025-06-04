@@ -156,6 +156,13 @@
     <div id="uploadStatus" style="margin-top:1rem;color:#00bfa6;"></div>
     <div id="results"></div>
     <form id="submitSelectedForm">
+	<label style="margin-top: 1rem; display: flex; flex-direction: column;">
+  	Claude Model:
+  	<select id="model">
+    		<option value="">Default (Claude Instant)</option>
+    		<option value="arn:aws:bedrock:ap-southeast-1:716337465006:inference-profile/apac.anthropic.claude-3-5-sonnet-20240620-v1:0">Claude 3.5 Sonnet</option>
+  	</select>
+	</label>
       <button type="submit" id="submitButton">Send Selected to extractListingDetails API</button>
     </form>
   </details>
@@ -253,13 +260,17 @@
 
       const combinedText = selectedTexts.join('\n\n');
 
-      const response = await fetch('/process-listing-details', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ text: combinedText })
-      });
+	const selectedModel = document.getElementById('model').value;
+    const response = await fetch('/process-listing-details', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        text: combinedText,
+        ...(selectedModel && { model: selectedModel })
+      })
+    });
 
       const result = await response.json();
       const output = document.createElement('pre');
