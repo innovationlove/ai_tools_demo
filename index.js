@@ -7,6 +7,7 @@ const path = require('path');
 const officeParser = require('officeparser');
 const fetch = require('node-fetch');
 const Tesseract = require('tesseract.js');
+const { PdfConverter } = require('pdf-poppler');
 
 process.on('uncaughtException', err => {
   console.error('Uncaught Exception:', err);
@@ -50,25 +51,57 @@ app.post('/upload-multi', upload.array('files'), async (req, res) => {
   for (const file of req.files) {
     const ext = path.extname(file.originalname).toLowerCase();
     const filePath = file.path;
-
+    const tempDir = `uploads/pdf_pages_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+    fs.mkdirSync(tempDir, { recursive: true });
+  
     try {
       let text = '';
-
+  
+      // OCR image file
       if (imageTypes.includes(ext)) {
-        const { data: result } = await Tesseract.recognize(
-          filePath,
-          'eng',
-          { logger: m => console.log(m) }
-        );
+        const { data: result } = await Tesseract.recognize(filePath, 'eng');
         text = result.text;
-      } else {
+      }
+  
+      // Officeparser fallback with OCR for image-based PDFs
+      else if (ext === '.pdf') {
+        const fileBuffer = fs.readFileSync(filePath);
+        try {
+          text = await officeParser.parseOfficeAsync(fileBuffer);
+        } catch (_) {
+          text = ''; // fallback to OCR
+        }
+  
+        // If officeParser result is empty or failed, OCR per page
+        if (!text.trim()) {
+          await PdfConverter.convert(filePath, {
+            out_dir: tempDir,
+            format: 'png',
+            out_prefix: 'page',
+            page: null
+          });
+  
+          const pageImages = fs.readdirSync(tempDir).filter(f => f.endsWith('.png'));
+          const ocrResults = [];
+  
+          for (const img of pageImages) {
+            const imgPath = path.join(tempDir, img);
+            const { data } = await Tesseract.recognize(imgPath, 'eng');
+            ocrResults.push(data.text);
+          }
+  
+          text = ocrResults.join('\n\n');
+        }
+      }
+  
+      // Other formats (e.g., docx, pptx)
+      else {
         const fileBuffer = fs.readFileSync(filePath);
         text = await officeParser.parseOfficeAsync(fileBuffer);
       }
-
+  
       results.push({ filename: file.originalname, text });
     } catch (err) {
-      // Silent fail, no stack trace spam
       results.push({
         filename: file.originalname,
         text: '',
@@ -77,9 +110,8 @@ app.post('/upload-multi', upload.array('files'), async (req, res) => {
     } finally {
       try {
         fs.unlinkSync(filePath);
-      } catch (_) {
-        // Silently ignore file cleanup errors
-      }
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      } catch (_) {}
     }
   }
 
