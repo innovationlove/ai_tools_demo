@@ -46,40 +46,63 @@ app.use(express.static('public'));
 app.post('/upload-multi', upload.array('files'), async (req, res) => {
   const results = [];
   const imageTypes = ['.jpg', '.jpeg', '.png'];
+  const acceptedTypes = ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', ...imageTypes];
 
   for (const file of req.files) {
     const ext = path.extname(file.originalname).toLowerCase();
     const filePath = file.path;
 
     try {
-      let text = '';
-
-      if (imageTypes.includes(ext)) {
-        const { data: result } = await Tesseract.recognize(
-          filePath,
-          'eng',
-          { logger: m => console.log(m) }
-        );
-        text = result.text;
-      } else {
-        const fileBuffer = fs.readFileSync(filePath);
-        text = await officeParser.parseOfficeAsync(fileBuffer);
+      // Skip unsupported types early
+      if (!acceptedTypes.includes(ext)) {
+        results.push({
+          filename: file.originalname,
+          text: '',
+          warning: 'Unsupported file type.'
+        });
+        continue;
       }
 
-      results.push({ filename: file.originalname, text });
+      let text = '';
+
+      // OCR for image types
+      if (imageTypes.includes(ext)) {
+        const { data: result } = await Tesseract.recognize(filePath, 'eng');
+        text = result.text.trim();
+      } else {
+        // Office/PDF parsing
+        const fileBuffer = fs.readFileSync(filePath);
+        try {
+          text = await officeParser.parseOfficeAsync(fileBuffer);
+          text = (text || '').trim();
+        } catch {
+          text = ''; // fallback to empty on parse error
+        }
+      }
+
+      // Only include result if text is meaningful
+      if (text.length >= 20) {
+        results.push({
+          filename: file.originalname,
+          text
+        });
+      } else {
+        results.push({
+          filename: file.originalname,
+          text: '',
+          warning: 'File parsed but contains little or no extractable text.'
+        });
+      }
     } catch (err) {
-      // Silent fail, no stack trace spam
       results.push({
         filename: file.originalname,
         text: '',
-        warning: 'Could not parse file content.'
+        warning: 'Failed to parse file.'
       });
     } finally {
       try {
         fs.unlinkSync(filePath);
-      } catch (_) {
-        // Silently ignore file cleanup errors
-      }
+      } catch (_) {}
     }
   }
 
