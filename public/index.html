@@ -147,7 +147,7 @@
 </form>
   </details>
 
-  <details open>
+  <details>
     <summary>extractListingDetails</summary>
     <form id="uploadForm" enctype="multipart/form-data">
       <input type="file" name="files" multiple required />
@@ -163,10 +163,23 @@
     		<option value="arn:aws:bedrock:ap-southeast-1:716337465006:inference-profile/apac.anthropic.claude-3-5-sonnet-20240620-v1:0">Claude 3.5 Sonnet</option>
   	</select>
 	</label>
-      <button type="submit" id="submitButton">Send Selected to extractListingDetails API</button>
+    <small style="color:#888;">Supported file types: PDF, Word, Excel, PowerPoint, and image files (JPG, PNG)</small>
+    <br />
+    <button type="submit" id="submitButton">Send Selected to extractListingDetails API</button>
     </form>
   </details>
 
+  <details open>
+    <summary>generateProjectSummary</summary>
+    <form id="generateSummaryForm">
+      <input type="file" name="files" multiple required accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.odt,.ods,.odp,.jpg,.jpeg,.png,image/*" />
+      <small style="color:#888;">Supported file types: PDF, Word, Excel, PowerPoint, and image files (JPG, PNG)</small>
+      <br />
+      <button type="submit" id="generateButton">Generate Summary</button>
+    </form>
+    <div id="generateOutput"></div>
+  </details>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.3/dist/tesseract.min.js"></script>
   <script>
     const uploadForm = document.getElementById('uploadForm');
     const results = document.getElementById('results');
@@ -316,6 +329,89 @@ paraphraseForm.addEventListener('submit', async (e) => {
   paraphraseButton.disabled = false;
   paraphraseButton.textContent = 'Paraphrase';
 });
+
+    // Keep all previous JS, append new logic
+    async function extractTextFromImage(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const { data: { text } } = await Tesseract.recognize(
+              reader.result,
+              'eng',
+              { logger: m => console.log(m) }
+            );
+            resolve(text);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    document.getElementById('generateSummaryForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const generateButton = document.getElementById('generateButton');
+      generateButton.disabled = true;
+      generateButton.textContent = 'Processing...';
+      const files = e.target.files.files;
+      if (!files.length) return;
+
+      let allText = '';
+
+      const imageTypes = ['image/jpeg', 'image/png'];
+      const docFiles = [];
+
+      for (let f of files) {
+        if (imageTypes.includes(f.type)) {
+          const imgText = await extractTextFromImage(f);
+          allText += `\n\n${imgText}`;
+        } else {
+          docFiles.push(f);
+        }
+      }
+
+      if (docFiles.length) {
+        const formData = new FormData();
+        docFiles.forEach(f => formData.append('files', f));
+
+        const uploadRes = await fetch('/upload-multi', {
+          method: 'POST',
+          body: formData
+        });
+
+        const parsed = await uploadRes.json();
+        allText += '\n\n' + parsed.map(f => f.text || '').join('\n\n');
+      }
+
+      const res = await fetch('/generate-project-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: allText })
+      });
+
+      const data = await res.json();
+      const out = document.getElementById('generateOutput');
+
+      let summary = data.body;
+      try {
+        if (typeof summary === 'string') summary = JSON.parse(summary);
+      } catch (e) {
+        summary = data.body; // fallback if not parsable
+      }
+
+      if (typeof summary === 'object') {
+        out.innerHTML = '<h3 style="color:#00bfa6;">Project Summary</h3>' +
+          Object.entries(summary).map(([k, v]) => `<p><strong>${k}:</strong> ${v}</p>`).join('');
+      } else {
+        out.innerHTML = `<pre>${summary}</pre>`;
+      }
+
+      generateButton.disabled = false;
+      generateButton.textContent = 'Generate Summary';
+    });
 </script>
 </body>
 </html>
