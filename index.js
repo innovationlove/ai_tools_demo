@@ -38,9 +38,9 @@ const requireAuth = (req, res, next) => {
   next();
 };
 app.use(requireAuth);
-
+app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 app.use(express.static('public'));
-app.use(express.json());
 
 // Upload & parse office/PDF/image files
 app.post('/upload-multi', upload.array('files'), async (req, res) => {
@@ -68,10 +68,18 @@ app.post('/upload-multi', upload.array('files'), async (req, res) => {
 
       results.push({ filename: file.originalname, text });
     } catch (err) {
-      console.error(`Failed to parse ${file.originalname}:`, err.message);
-      results.push({ filename: file.originalname, error: 'Failed to parse.' });
+      // Silent fail, no stack trace spam
+      results.push({
+        filename: file.originalname,
+        text: '',
+        warning: 'Could not parse file content.'
+      });
     } finally {
-      fs.unlink(filePath, () => {});
+      try {
+        fs.unlinkSync(filePath);
+      } catch (_) {
+        // Silently ignore file cleanup errors
+      }
     }
   }
 
