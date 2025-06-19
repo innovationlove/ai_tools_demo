@@ -8,6 +8,13 @@ const officeParser = require('officeparser');
 const fetch = require('node-fetch');
 const Tesseract = require('tesseract.js');
 
+process.on('uncaughtException', err => {
+  console.error('Uncaught Exception:', err);
+});
+process.on('unhandledRejection', reason => {
+  console.error('Unhandled Rejection:', reason);
+});
+
 const app = express();
 const PORT = 8082;
 

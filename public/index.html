@@ -355,7 +355,12 @@ paraphraseForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const generateButton = document.getElementById('generateButton');
       generateButton.disabled = true;
-      generateButton.textContent = 'Processing...';
+      let dots = ['.', '..', '...'];
+      let k = 0;
+      const generateInterval = setInterval(() => {
+        generateButton.textContent = `Processing${dots[k % dots.length]}`;
+        k++;
+      }, 400);
       const files = e.target.files.files;
       if (!files.length) return;
 
@@ -409,6 +414,7 @@ paraphraseForm.addEventListener('submit', async (e) => {
         out.innerHTML = `<pre>${summary}</pre>`;
       }
 
+      clearInterval(generateInterval);
       generateButton.disabled = false;
       generateButton.textContent = 'Generate Summary';
     });
