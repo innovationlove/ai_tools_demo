@@ -179,8 +179,35 @@
     </form>
     <div id="generateOutput"></div>
   </details>
+
+  <details open>
+    <summary>aimAssistantChat</summary>
+    <div id="chatContainer" style="
+      max-height: 400px;
+      overflow-y: auto;
+      padding: 1rem;
+      background: #121212;
+      border-radius: 8px;
+      margin-top: 1rem;
+      font-family: 'Segoe UI', sans-serif;
+      font-size: 13px;
+      line-height: 1.4;
+      color: #ddd;
+    ">
+      <!-- messages will go here -->
+    </div>
+  
+    <form id="aimAssistantForm" style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+      <input type="text" id="aimInputText" name="inputText" placeholder="Type your message..." required
+        style="flex: 1; padding: 0.75rem; border-radius: 6px; border: none; font-size: 14px;" />
+      <button type="submit" id="aimSubmit"
+        style="padding: 0.75rem 1rem; background-color: #00d084; color: #000; border: none; border-radius: 6px; font-weight: bold;">Send</button>
+    </form>
+  </details>
+
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.3/dist/tesseract.min.js"></script>
   <script>
+    const sessionId = `user-${Math.random().toString(36).slice(2, 10)}-${Date.now()}`;
     const uploadForm = document.getElementById('uploadForm');
     const results = document.getElementById('results');
     const submitSelectedForm = document.getElementById('submitSelectedForm');
@@ -418,6 +445,96 @@ paraphraseForm.addEventListener('submit', async (e) => {
       generateButton.disabled = false;
       generateButton.textContent = 'Generate Summary';
     });
+
+    const chatContainer = document.getElementById('chatContainer');
+  const inputEl = document.getElementById('aimInputText');
+  const formEl = document.getElementById('aimAssistantForm');
+  const submitBtn = document.getElementById('aimSubmit');
+
+  const appendMessage = (role, content) => {
+    const messageEl = document.createElement('div');
+    messageEl.style.marginBottom = '1rem';
+    messageEl.innerHTML = `
+      <div style="font-weight: 600; color: ${role === 'user' ? '#00d084' : '#1faaff'}; margin-bottom: 4px;">
+        ${role === 'user' ? 'You' : 'AiM Assistant'}
+      </div>
+      <div style="white-space: pre-wrap; color: #eee;">${content}</div>
+    `;
+    chatContainer.appendChild(messageEl);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+  };
+
+  const appendTypingIndicator = () => {
+    const typingEl = document.createElement('div');
+    typingEl.id = 'typingIndicator';
+    typingEl.style.color = '#888';
+    typingEl.style.fontStyle = 'italic';
+    typingEl.innerHTML = 'Agent is typing<span class="dots">.</span>';
+    chatContainer.appendChild(typingEl);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+
+    // Animate dots
+    const dotsEl = typingEl.querySelector('.dots');
+    let dotCount = 1;
+    typingEl._dotInterval = setInterval(() => {
+      dotCount = (dotCount + 1) % 4;
+      dotsEl.textContent = '.'.repeat(dotCount || 1);
+    }, 500);
+  };
+
+  const removeTypingIndicator = () => {
+    const typingEl = document.getElementById('typingIndicator');
+    if (typingEl) {
+      clearInterval(typingEl._dotInterval);
+      typingEl.remove();
+    }
+  };
+
+  formEl.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const message = inputEl.value.trim();
+    if (!message) return;
+
+    appendMessage('user', message);
+    inputEl.value = '';
+    submitBtn.disabled = true;
+
+    // 1–2s randomized delay before typing
+    const delay = 1000 + Math.floor(Math.random() * 1000);
+    setTimeout(appendTypingIndicator, delay);
+
+    try {
+      const res = await fetch('/aim-assistant-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inputText: message, sessionId })
+      });
+
+      const result = await res.json();
+      removeTypingIndicator();
+
+      let content = '';
+      try {
+        const parsed = result.body ? JSON.parse(result.body) : result;
+        const raw = parsed.response || parsed.message || '';
+        content = typeof raw === 'string' ? raw.trim() : JSON.stringify(raw, null, 2);
+        // Beautify long JSON string content (optional):
+        content = content.replace(/\\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+      } catch (err) {
+        content = '[⚠️ Unable to parse agent response]';
+        console.warn(err);
+      }
+
+      appendMessage('agent', content);
+    } catch (err) {
+      removeTypingIndicator();
+      appendMessage('agent', '⚠️ Error getting a response from the assistant.');
+      console.error(err);
+    }
+
+    submitBtn.disabled = false;
+  });
+
 </script>
 </body>
 </html>

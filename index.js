@@ -231,3 +231,46 @@ app.post('/generate-project-summary', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
+
+app.post('/aim-assistant-chat', async (req, res) => {
+  try {
+    const { inputText, sessionId } = req.body;
+    if (!inputText) {
+      return res.status(400).json({ error: 'Missing inputText' });
+    }
+
+    const response = await fetch(`${process.env.API_ENDPOINT}/aim-assistant`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.API_KEY
+      },
+      body: JSON.stringify({
+        inputText,
+        sessionId
+      })
+    });
+
+    console.log(sessionId);
+    
+    const raw = await response.text();
+    if (!response.ok) {
+      console.error('Assistant upstream error:', response.status, raw);
+      return res.status(502).json({ error: 'Upstream error', details: raw });
+    }
+
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      return res.status(500).json({ error: 'Malformed JSON from agent', raw });
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error('Assistant error:', err);
+    res.status(500).json({ error: 'Failed to reach assistant' });
+  }
+
+
+});
